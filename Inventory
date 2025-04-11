@@ -1,0 +1,173 @@
+import React, { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const initialInventory = [
+  {
+    id: 1,
+    title: "Dr. Brown's Milestones Baby's First Straw Cup",
+    asin: "B0C54D5NCG",
+    amazonLink: "https://www.amazon.com/gp/product/B0C54D5NCG",
+    supplier: "Walmart",
+    supplierLink: "https://www.walmart.com/ip/Dr-Brown-s-Milestones...",
+    supplierPrice: "",
+    orderFrom: "Walmart",
+    comments: "Added to cart",
+    history: {
+      "2025-04-10": { unshipped: 1, shipped: 2, ordered: 3 },
+      "2025-04-11": { unshipped: 0, shipped: 1, ordered: 0 },
+    },
+  },
+  {
+    id: 2,
+    title: "Not Your Mother's Curl Talk Frizz Control Sculpting Gel",
+    asin: "B0C2FV2BZV",
+    amazonLink: "https://www.amazon.com/gp/product/B0C2FV2BZV",
+    supplier: "Target",
+    supplierLink: "https://www.target.com/p/not-your-mother-s-cur...",
+    supplierPrice: "30.99",
+    orderFrom: "Target",
+    comments: "",
+    history: {
+      "2025-04-10": { unshipped: 2, shipped: 1, ordered: 1 },
+      "2025-04-11": { unshipped: 1, shipped: 0, ordered: 2 },
+    },
+  },
+];
+
+export default function InventoryManager() {
+  const [inventory, setInventory] = useState(initialInventory);
+  const [search, setSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+
+  const updateHistory = (id, date, field, value) => {
+    setInventory((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const newHistory = { ...item.history };
+          if (!newHistory[date]) newHistory[date] = { unshipped: 0, shipped: 0, ordered: 0 };
+          newHistory[date][field] = Number(value);
+          return { ...item, history: newHistory };
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateComment = (id, value) => {
+    setInventory((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, comments: value } : item))
+    );
+  };
+
+  const calculateStock = (history) => {
+    let total = 0;
+    for (const date in history) {
+      const { ordered = 0, shipped = 0 } = history[date];
+      total += ordered - shipped;
+    }
+    return total;
+  };
+
+  const filteredInventory = inventory.filter((item) =>
+    item.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="p-4 space-y-6">
+      <h1 className="text-2xl font-bold">Inventory Management</h1>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Input
+          placeholder="Search by title..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-md"
+        />
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="max-w-xs"
+        />
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Title</TableHead>
+            <TableHead>ASIN</TableHead>
+            <TableHead>Amazon</TableHead>
+            <TableHead>Supplier</TableHead>
+            <TableHead>Calculated Stock</TableHead>
+            <TableHead>Unshipped ({selectedDate})</TableHead>
+            <TableHead>Shipped ({selectedDate})</TableHead>
+            <TableHead>Ordered ({selectedDate})</TableHead>
+            <TableHead>Comments</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredInventory.map((item) => (
+            <TableRow key={item.id}>
+              <TableCell>{item.title}</TableCell>
+              <TableCell>{item.asin}</TableCell>
+              <TableCell>
+                <a
+                  href={item.amazonLink}
+                  target="_blank"
+                  className="text-blue-500 underline"
+                >
+                  Link
+                </a>
+              </TableCell>
+              <TableCell>
+                <a
+                  href={item.supplierLink}
+                  target="_blank"
+                  className="text-blue-500 underline"
+                >
+                  {item.orderFrom}
+                </a>
+              </TableCell>
+              <TableCell>{calculateStock(item.history)}</TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  value={item.history?.[selectedDate]?.unshipped || 0}
+                  onChange={(e) =>
+                    updateHistory(item.id, selectedDate, "unshipped", e.target.value)
+                  }
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  value={item.history?.[selectedDate]?.shipped || 0}
+                  onChange={(e) =>
+                    updateHistory(item.id, selectedDate, "shipped", e.target.value)
+                  }
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  value={item.history?.[selectedDate]?.ordered || 0}
+                  onChange={(e) =>
+                    updateHistory(item.id, selectedDate, "ordered", e.target.value)
+                  }
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="text"
+                  value={item.comments}
+                  onChange={(e) => updateComment(item.id, e.target.value)}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
