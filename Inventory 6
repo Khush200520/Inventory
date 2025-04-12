@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inventory Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100 p-4">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function InventoryManager() {
+      const defaultInventory = [
+        {
+          id: 1,
+          title: "Dr. Brown's Milestones Baby's First Straw Cup",
+          asin: "B0C54D5NCG",
+          amazonLink: "https://www.amazon.com/gp/product/B0C54D5NCG",
+          supplierLink: "https://www.walmart.com/ip/1229201530",
+          supplierPrice: "",
+          orderFrom: "Walmart",
+          comments: "Added to cart",
+          history: {
+            "2025-04-10": { unshipped: 1, shipped: 2, ordered: 3 },
+            "2025-04-11": { unshipped: 0, shipped: 1, ordered: 0 },
+          },
+        },
+        {
+          id: 2,
+          title: "Not Your Mother's Curl Talk Gel",
+          asin: "B0C2FV2BZV",
+          amazonLink: "https://www.amazon.com/gp/product/B0C2FV2BZV",
+          supplierLink: "https://www.target.com/p/80129398",
+          supplierPrice: "30.99",
+          orderFrom: "Target",
+          comments: "",
+          history: {
+            "2025-04-10": { unshipped: 2, shipped: 1, ordered: 1 },
+            "2025-04-11": { unshipped: 1, shipped: 0, ordered: 2 },
+          },
+        },
+      ];
+
+      const [inventory, setInventory] = useState([]);
+      const [search, setSearch] = useState("");
+      const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+      const [sortField, setSortField] = useState(null);
+      const [sortAsc, setSortAsc] = useState(true);
+      const [filterStock, setFilterStock] = useState("all");
+      const [filterPending, setFilterPending] = useState("all");
+
+      useEffect(() => {
+        const saved = localStorage.getItem("inventoryData");
+        setInventory(saved ? JSON.parse(saved) : defaultInventory);
+      }, []);
+
+      const saveData = () => {
+        localStorage.setItem("inventoryData", JSON.stringify(inventory));
+        alert("Inventory saved!");
+      };
+
+      const updateField = (id, field, value) => {
+        setInventory(inventory.map(item => item.id === id ? { ...item, [field]: value } : item));
+      };
+
+      const updateHistory = (id, date, field, value) => {
+        setInventory(prev => prev.map(item => {
+          if (item.id !== id) return item;
+          const newHist = { ...item.history };
+          if (!newHist[date]) newHist[date] = { ordered: 0, shipped: 0, unshipped: 0 };
+          newHist[date][field] = Number(value);
+          return { ...item, history: newHist };
+        }));
+      };
+
+      const deleteItem = (id) => {
+        if (confirm("Are you sure you want to delete this item?")) {
+          setInventory(inventory.filter(item => item.id !== id));
+        }
+      };
+
+      const calculateStock = (history) => {
+        let ordered = 0, shipped = 0, unshipped = 0;
+        Object.values(history).forEach(({ ordered: o=0, shipped: s=0, unshipped: u=0 }) => {
+          ordered += o; shipped += s; unshipped += u;
+        });
+        return ordered - shipped - unshipped;
+      };
+
+      const calculatePending = (history) => {
+        let pending = 0;
+        Object.values(history).forEach(({ unshipped = 0, shipped = 0 }) => {
+          pending += unshipped - shipped;
+        });
+        return pending;
+      };
+
+      let filtered = inventory.filter(item => item.title.toLowerCase().includes(search.toLowerCase()));
+
+      if (filterStock === "in") filtered = filtered.filter(i => calculateStock(i.history) > 0);
+      else if (filterStock === "out") filtered = filtered.filter(i => calculateStock(i.history) === 0);
+
+      if (filterPending === "yes") filtered = filtered.filter(i => calculatePending(i.history) > 0);
+      else if (filterPending === "no") filtered = filtered.filter(i => calculatePending(i.history) <= 0);
+
+      if (sortField) {
+        filtered = [...filtered].sort((a, b) => {
+          const aVal = a[sortField] || "";
+          const bVal = b[sortField] || "";
+          return (aVal > bVal ? 1 : -1) * (sortAsc ? 1 : -1);
+        });
+      }
+
+      const renderSortArrow = (field) => (
+        <span onClick={() => {
+          setSortAsc(field === sortField ? !sortAsc : true);
+          setSortField(field);
+        }} className="cursor-pointer ml-1">{sortField === field ? (sortAsc ? "↑" : "↓") : "↕"}</span>
+      );
+
+      const getStatusBadge = (pending) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-bold ${pending > 0 ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'}`}>
+          {pending > 0 ? 'Pending' : 'Complete'}
+        </span>
+      );
+
+      return (
+        <div className="max-w-7xl mx-auto bg-white p-6 rounded-lg shadow">
+          <h1 className="text-2xl font-bold mb-4">Inventory Manager</h1>
+          <div className="flex flex-wrap gap-3 mb-4">
+            <input className="border p-2 rounded" placeholder="Search title..." value={search} onChange={e => setSearch(e.target.value)} />
+            <select className="border p-2 rounded" value={filterStock} onChange={e => setFilterStock(e.target.value)}>
+              <option value="all">All Stock</option>
+              <option value="in">In Stock</option>
+              <option value="out">Out of Stock</option>
+            </select>
+            <select className="border p-2 rounded" value={filterPending} onChange={e => setFilterPending(e.target.value)}>
+              <option value="all">All Orders</option>
+              <option value="yes">Unshipped Orders</option>
+              <option value="no">Shipped/None</option>
+            </select>
+            <input type="date" className="border p-2 rounded" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+            <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" onClick={() => setInventory([...inventory, {
+              id: inventory.length + 1,
+              title: "",
+              asin: "",
+              amazonLink: "",
+              supplierLink: "",
+              supplierPrice: "",
+              orderFrom: "",
+              comments: "",
+              history: { [selectedDate]: { ordered: 0, shipped: 0, unshipped: 0 } },
+            }])}>Add Item</button>
+            <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" onClick={saveData}>Save</button>
+          </div>
+
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="p-2">Title {renderSortArrow("title")}</th>
+                <th className="p-2">ASIN {renderSortArrow("asin")}</th>
+                <th className="p-2">Amazon Link</th>
+                <th className="p-2">Supplier Link</th>
+                <th className="p-2">Stock</th>
+                <th className="p-2">Pending</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Unshipped ({selectedDate})</th>
+                <th className="p-2">Shipped ({selectedDate})</th>
+                <th className="p-2">Ordered ({selectedDate})</th>
+                <th className="p-2">Comments</th>
+                <th className="p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(item => {
+                const stock = calculateStock(item.history);
+                const pending = calculatePending(item.history);
+                const dateData = item.history[selectedDate] || {};
+                return (
+                  <tr key={item.id} className="border-t">
+                    <td className="p-2"><input className="w-full border p-1 rounded" value={item.title} onChange={e => updateField(item.id, "title", e.target.value)} /></td>
+                    <td className="p-2"><input className="w-full border p-1 rounded" value={item.asin} onChange={e => updateField(item.id, "asin", e.target.value)} /></td>
+                    <td className="p-2"><a className="text-blue-500 hover:underline" href={item.amazonLink} target="_blank" rel="noopener noreferrer">Amazon</a></td>
+                    <td className="p-2"><a className="text-blue-500 hover:underline" href={item.supplierLink} target="_blank" rel="noopener noreferrer">Supplier</a></td>
+                    <td className={`p-2 ${stock < 0 ? 'text-red-600 font-bold' : ''}`}>{stock}</td>
+                    <td className={`p-2 ${pending < 0 ? 'text-red-600 font-bold' : ''}`}>{pending}</td>
+                    <td className="p-2">{getStatusBadge(pending)}</td>
+                    <td className="p-2"><input type="number" className="w-full border p-1 rounded" value={dateData.unshipped || 0} onChange={e => updateHistory(item.id, selectedDate, "unshipped", e.target.value)} /></td>
+                    <td className="p-2"><input type="number" className="w-full border p-1 rounded" value={dateData.shipped || 0} onChange={e => updateHistory(item.id, selectedDate, "shipped", e.target.value)} /></td>
+                    <td className="p-2"><input type="number" className="w-full border p-1 rounded" value={dateData.ordered || 0} onChange={e => updateHistory(item.id, selectedDate, "ordered", e.target.value)} /></td>
+                    <td className="p-2"><input className="w-full border p-1 rounded" value={item.comments} onChange={e => updateField(item.id, "comments", e.target.value)} /></td>
+                    <td className="p-2">
+                      <button className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" onClick={() => deleteItem(item.id)}>Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Total Row */}
+              <tr className="bg-blue-100 font-bold border-t-2 border-gray-300">
+                <td className="p-2" colSpan="7">Total ({selectedDate})</td>
+                <td className="p-2">
+                  {filtered.reduce((sum, item) => sum + (item.history[selectedDate]?.unshipped || 0), 0)}
+                </td>
+                <td className="p-2">
+                  {filtered.reduce((sum, item) => sum + (item.history[selectedDate]?.shipped || 0), 0)}
+                </td>
+                <td className="p-2">
+                  {filtered.reduce((sum, item) => sum + (item.history[selectedDate]?.ordered || 0), 0)}
+                </td>
+                <td className="p-2" colSpan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<InventoryManager />);
+  </script>
+</body>
+</html>
